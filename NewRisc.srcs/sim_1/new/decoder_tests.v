@@ -20,14 +20,14 @@
 //////////////////////////////////////////////////////////////////////////////////
 
 
-module decoder_tests import common::*; (
+module decoder_tests import decoding::*; (
 
     );
     LongInstructionWord liw;
     
     reg [31:0] insn = 0;
     reg [31:0] pc = 31'h01000000;
-    decoder_addresser dut(.ins(insn), .pc(pc), .decoded(liw));
+    decoder dut(.ins(insn), .pc(pc), .decoded(liw));
     
     initial begin
         #10 insn = 32'h0;
