@@ -33,10 +33,15 @@ interface PipelineLink;
 	// high when the source asserts a valid instruction and wants the sink to accept it.
 	logic instructionValid;
 	// The instruction itself
-	LongInstructionWord instruction;
+	decoding::LongInstructionWord instruction;
 	// The data itself (operands before execute stage, outputs after execute stage)
 	logic[31:0] lhsData;
 	logic[31:0] rhsData;
+	
+	// Whether the functional unit should ignore lhsData and/or rhsData, instead waiting for it to be provided via the register forwarding bus
+	logic lPending;
+	logic rPending;
+	
 	// A tag used to identify the instruction.
 	logic[3:0] tag;
 	// Set if the instruction is speculative and should be held pending branch confirmation
@@ -49,14 +54,18 @@ interface PipelineLink;
 			output lhsData,
 			output rhsData,
 			output tag,
-			output isSpeculative);
+			output isSpeculative,
+			output lPending,
+			output rPending);
 	modport Sink (
 			output readyToAccept,
 			input instructionValid,
 			input instruction,
 			input lhsData,
 			input rhsData,
-			input tag);
+			input tag,
+			input lPending,
+			input rPending);
 	
 endinterface
 
@@ -85,7 +94,7 @@ interface WritebackLink;
 			
 endinterface
 
-interface SpeculativeControl;
+interface SpeculationControl;
 	// high when a speculative instruction is somewhere in the pipeline
 	logic speculatingInPipeline;
 	// high when the speculative branch currently in the pipeline has resolved
@@ -115,20 +124,27 @@ interface SpeculativeControl;
 	);
 endinterface
 
-
+// TODO rethink this? Right now, there's a RegisterForwarding  bus for each requester. The requester sets the reg_id, and the *request* is broadcast to each provider. When a provider has the desired value, it writes it to the bus. 
+// The alternative is to have each provider broadcast, and muxes on each requester
+// Other alternatives include an explicit M:N (M providers, N requesters) crossbar switch (maybe), or a common data bus of 1024 bits (excessive)
+//
+// Now that I think about it, the current implementation is a
+// crossbar switch, just weirdly packed into the provider logic
+// The provider includes the switch/enable logic for all N requesters
+// This will eventually depend on the number of requesters and providers. Many requesters: mux at requester. Many providers: compare and wired-OR at the provider.
 interface RegisterForwarding;
-	// the register being fetched (set by the fetch unit)
-	logic[3:0] reg_id;
+	// the phyisical register being fetched (set by the fetch unit)
+	logic[4:0] reg_id;
 	// whether an execution unit has the result (wired-or)
 	wor valid;
 	// the value of the register (wired-or, driven by the execution unit that has the result)
 	wor[31:0] value;
-	modport ExecutionUnit(
+	modport Provider(
 		input reg_id,
 		output valid,
 		output value
 	);
-	modport FetchUnit(
+	modport Requester(
 		output reg_id,
 		input valid,
 		input value
@@ -146,7 +162,7 @@ module decode_unit import decoding::*; (
 	output LongInstructionWord renamed,
 	PipelineLink.Source to_issue_unit,
 	
-	SpeculativeControl.Watcher speculation,
+	SpeculationControl.Watcher speculation,
 	MemInterface.Initiator l1i_cache
 );
 LongInstructionWord decoded;
@@ -155,16 +171,64 @@ LongInstructionWord decoded;
 // Each logical register maps to two physical registers (i.e. r4 can map to phys4 and phys20)
 // phys_msb_mapping[x] indicates the MSB of the physical register to service reads from rx
 // (i.e. x if 0, 16+x if 1)
-reg[15:0] phys_msb_mapping;
+reg[15:0] phys_msb_mapping = 16'h0;
 // stores the mapping just before the speculative instruction in the pipeline
 // If speculation is wrong, we restore
-reg[15:0] speculative_restore_phys_mapping;
+reg[15:0] speculative_restore_phys_mapping = 16'hx;
 
 always_comb begin
 	renamed = decoded;
-	renamed.lRead.phys_register_id = 5'b11111;
+	
+	renamed.lRead.phys_register_id = 5'bx;
+	renamed.rRead.phys_register_id = 5'bx;
+	renamed.lWrite.phys_register_id = 5'bx;
+	renamed.rWrite.phys_register_id = 5'bx;
+	// read from the register given in the mapping
+	if(renamed.lRead.path == DP_REGISTER) begin
+		renamed.lRead.phys_register_id = {phys_msb_mapping[renamed.lRead.register_id], renamed.lRead.register_id};
+	end
+	
+	if(renamed.rRead.path == DP_REGISTER) begin
+		renamed.rRead.phys_register_id = {phys_msb_mapping[renamed.rRead.register_id], renamed.rRead.register_id};
+	end
+	
+	
+	// Write to the opposite register of the mapping (updated in the always_ff block below)
+	if(renamed.lWrite.path == DP_REGISTER) begin
+		renamed.lWrite.phys_register_id = {~phys_msb_mapping[renamed.lWrite.register_id], renamed.lWrite.register_id};
+	end
+	if(renamed.rWrite.path == DP_REGISTER) begin
+		renamed.rWrite.phys_register_id = {~phys_msb_mapping[renamed.rWrite.register_id], renamed.rWrite.register_id};
+	end
 end
-decoder_addresser dec(.ins(ins), .pc(pc), .decoded(decoded));
+
+always_ff @ (posedge clk) begin
+	
+	// sim debugging use only. We do this here, so that we only show the values that would be seen by the fetch/issue unit. 
+	if(renamed.lRead.path == DP_REGISTER) begin
+		$display("[REGMAP] %h %h RD LHS r%x phys%x", pc, ins, renamed.lRead.register_id, renamed.lRead.phys_register_id);
+	end
+	
+	if(renamed.rRead.path == DP_REGISTER) begin
+		$display("[REGMAP] %h %h RD RHS r%x phys%x", pc, ins, renamed.rRead.register_id, renamed.rRead.phys_register_id);
+	end
+	
+	
+	// Write to the opposite register of the mapping (displays only for sim/debug)
+	if(renamed.lWrite.path == DP_REGISTER) begin
+		$display("[REGMAP] %h %h WR LHS r%x phys%x", pc, ins, renamed.lWrite.register_id, renamed.lWrite.phys_register_id);
+		phys_msb_mapping[renamed.lWrite.register_id] <= ~phys_msb_mapping[renamed.lWrite.register_id];
+		$display("[REGMAP] %h %h NEXTRD r%x phys%x", pc, ins, renamed.lWrite.register_id, renamed.lWrite.phys_register_id);
+	end
+	if(renamed.rWrite.path == DP_REGISTER) begin
+		$display("[REGMAP] %h %h WR RHS r%x phys%x", pc, ins, renamed.rWrite.register_id, renamed.rWrite.phys_register_id);		
+		phys_msb_mapping[renamed.rWrite.register_id] <= ~phys_msb_mapping[renamed.rWrite.register_id];
+		$display("[REGMAP] %h %h NEXTRD r%x phys%x", pc, ins, renamed.rWrite.register_id, renamed.rWrite.phys_register_id);
+	end
+end
+
+
+decoder dec(.ins(ins), .pc(pc), .decoded(decoded));
 // TODO
 endmodule
 

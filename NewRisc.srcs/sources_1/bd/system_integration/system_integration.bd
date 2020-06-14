@@ -1,12 +1,11 @@
 {
   "design": {
     "design_info": {
-      "boundary_crc": "0xD76D0D42592A9A76",
+      "boundary_crc": "0x49FE0C6B1B1559D1",
       "device": "xc7z020clg484-1",
       "name": "system_integration",
       "synth_flow_mode": "Hierarchical",
-      "tool_version": "2019.1",
-      "validated": "true"
+      "tool_version": "2019.1"
     },
     "design_tree": {
       "processing_system7_0": "",
@@ -14,72 +13,18 @@
       "system_cache_0": "",
       "rst_ps7_0_100M": "",
       "ahblite_axi_bridge_1": "",
-      "axi_protocol_convert_0": ""
+      "axi_protocol_convert_0": "",
+      "axi_protocol_convert_1": "",
+      "axi_apb_bridge_0": ""
     },
     "interface_ports": {
       "DDR": {
         "mode": "Master",
-        "vlnv": "xilinx.com:interface:ddrx_rtl:1.0",
-        "parameters": {
-          "AXI_ARBITRATION_SCHEME": {
-            "value": "TDM",
-            "value_src": "default"
-          },
-          "BURST_LENGTH": {
-            "value": "8",
-            "value_src": "default"
-          },
-          "CAN_DEBUG": {
-            "value": "false",
-            "value_src": "default"
-          },
-          "CAS_LATENCY": {
-            "value": "11",
-            "value_src": "default"
-          },
-          "CAS_WRITE_LATENCY": {
-            "value": "11",
-            "value_src": "default"
-          },
-          "CS_ENABLED": {
-            "value": "true",
-            "value_src": "default"
-          },
-          "DATA_MASK_ENABLED": {
-            "value": "true",
-            "value_src": "default"
-          },
-          "DATA_WIDTH": {
-            "value": "8",
-            "value_src": "default"
-          },
-          "MEMORY_TYPE": {
-            "value": "COMPONENTS",
-            "value_src": "default"
-          },
-          "MEM_ADDR_MAP": {
-            "value": "ROW_COLUMN_BANK",
-            "value_src": "default"
-          },
-          "SLOT": {
-            "value": "Single",
-            "value_src": "default"
-          },
-          "TIMEPERIOD_PS": {
-            "value": "1250",
-            "value_src": "default"
-          }
-        }
+        "vlnv": "xilinx.com:interface:ddrx_rtl:1.0"
       },
       "FIXED_IO": {
         "mode": "Master",
-        "vlnv": "xilinx.com:display_processing_system7:fixedio_rtl:1.0",
-        "parameters": {
-          "CAN_DEBUG": {
-            "value": "false",
-            "value_src": "default"
-          }
-        }
+        "vlnv": "xilinx.com:display_processing_system7:fixedio_rtl:1.0"
       },
       "ahb_l1d": {
         "mode": "Slave",
@@ -88,6 +33,10 @@
       "ahb_l1i": {
         "mode": "Slave",
         "vlnv": "xilinx.com:interface:ahblite_rtl:2.0"
+      },
+      "apb_cpu_config": {
+        "mode": "Master",
+        "vlnv": "xilinx.com:interface:apb_rtl:1.0"
       }
     },
     "components": {
@@ -237,7 +186,7 @@
             "value": "150.000000"
           },
           "PCW_FPGA2_PERIPHERAL_FREQMHZ": {
-            "value": "50.000000"
+            "value": "50"
           },
           "PCW_FPGA_FCLK0_ENABLE": {
             "value": "1"
@@ -725,6 +674,12 @@
           "PCW_MIO_TREE_SIGNALS": {
             "value": "gpio[0]#qspi0_ss_b#qspi0_io[0]#qspi0_io[1]#qspi0_io[2]#qspi0_io[3]/HOLD_B#qspi0_sclk#gpio[7]#gpio[8]#gpio[9]#gpio[10]#gpio[11]#gpio[12]#gpio[13]#gpio[14]#gpio[15]#tx_clk#txd[0]#txd[1]#txd[2]#txd[3]#tx_ctl#rx_clk#rxd[0]#rxd[1]#rxd[2]#rxd[3]#rx_ctl#data[4]#dir#stp#nxt#data[0]#data[1]#data[2]#data[3]#clk#data[5]#data[6]#data[7]#clk#cmd#data[0]#data[1]#data[2]#data[3]#wp#cd#tx#rx#gpio[50]#gpio[51]#mdc#mdio"
           },
+          "PCW_M_AXI_GP0_ENABLE_STATIC_REMAP": {
+            "value": "0"
+          },
+          "PCW_M_AXI_GP0_THREAD_ID_WIDTH": {
+            "value": "12"
+          },
           "PCW_PJTAG_PERIPHERAL_ENABLE": {
             "value": "0"
           },
@@ -753,7 +708,7 @@
             "value": "1"
           },
           "PCW_QSPI_PERIPHERAL_FREQMHZ": {
-            "value": "200.000000"
+            "value": "200"
           },
           "PCW_QSPI_QSPI_IO": {
             "value": "MIO 1 .. 6"
@@ -900,6 +855,12 @@
         "vlnv": "xilinx.com:ip:system_cache:4.0",
         "xci_name": "system_integration_system_cache_0_0",
         "parameters": {
+          "C_ENABLE_ERROR_HANDLING": {
+            "value": "0"
+          },
+          "C_ENABLE_EXCLUSIVE": {
+            "value": "1"
+          },
           "C_NUM_GENERIC_PORTS": {
             "value": "2"
           },
@@ -930,19 +891,35 @@
             "value": "2"
           }
         }
+      },
+      "axi_protocol_convert_1": {
+        "vlnv": "xilinx.com:ip:axi_protocol_converter:2.1",
+        "xci_name": "system_integration_axi_protocol_convert_1_0"
+      },
+      "axi_apb_bridge_0": {
+        "vlnv": "xilinx.com:ip:axi_apb_bridge:3.0",
+        "xci_name": "system_integration_axi_apb_bridge_0_1",
+        "parameters": {
+          "C_APB_NUM_SLAVES": {
+            "value": "1"
+          },
+          "C_M_APB_PROTOCOL": {
+            "value": "apb4"
+          }
+        }
       }
     },
     "interface_nets": {
-      "processing_system7_0_FIXED_IO": {
+      "axi_apb_bridge_0_APB_M": {
         "interface_ports": [
-          "FIXED_IO",
-          "processing_system7_0/FIXED_IO"
+          "apb_cpu_config",
+          "axi_apb_bridge_0/APB_M"
         ]
       },
-      "processing_system7_0_DDR": {
+      "axi_protocol_convert_1_M_AXI": {
         "interface_ports": [
-          "DDR",
-          "processing_system7_0/DDR"
+          "axi_protocol_convert_1/M_AXI",
+          "axi_apb_bridge_0/AXI4_LITE"
         ]
       },
       "ahblite_axi_bridge_1_M_AXI": {
@@ -951,16 +928,16 @@
           "system_cache_0/S1_AXI_GEN"
         ]
       },
-      "ahblite_axi_bridge_0_M_AXI": {
-        "interface_ports": [
-          "ahblite_axi_bridge_0/M_AXI",
-          "system_cache_0/S0_AXI_GEN"
-        ]
-      },
       "system_cache_0_M0_AXI": {
         "interface_ports": [
           "system_cache_0/M0_AXI",
           "axi_protocol_convert_0/S_AXI"
+        ]
+      },
+      "ahblite_axi_bridge_0_M_AXI": {
+        "interface_ports": [
+          "ahblite_axi_bridge_0/M_AXI",
+          "system_cache_0/S0_AXI_GEN"
         ]
       },
       "ahb_1": {
@@ -980,6 +957,24 @@
           "axi_protocol_convert_0/M_AXI",
           "processing_system7_0/S_AXI_HP0"
         ]
+      },
+      "processing_system7_0_DDR": {
+        "interface_ports": [
+          "DDR",
+          "processing_system7_0/DDR"
+        ]
+      },
+      "processing_system7_0_FIXED_IO": {
+        "interface_ports": [
+          "FIXED_IO",
+          "processing_system7_0/FIXED_IO"
+        ]
+      },
+      "processing_system7_0_M_AXI_GP0": {
+        "interface_ports": [
+          "processing_system7_0/M_AXI_GP0",
+          "axi_protocol_convert_1/S_AXI"
+        ]
       }
     },
     "nets": {
@@ -992,7 +987,9 @@
           "ahblite_axi_bridge_0/s_ahb_hclk",
           "ahblite_axi_bridge_1/s_ahb_hclk",
           "processing_system7_0/M_AXI_GP0_ACLK",
-          "axi_protocol_convert_0/aclk"
+          "axi_protocol_convert_0/aclk",
+          "axi_protocol_convert_1/aclk",
+          "axi_apb_bridge_0/s_axi_aclk"
         ]
       },
       "processing_system7_0_FCLK_RESET0_N": {
@@ -1007,7 +1004,9 @@
           "system_cache_0/ARESETN",
           "ahblite_axi_bridge_0/s_ahb_hresetn",
           "ahblite_axi_bridge_1/s_ahb_hresetn",
-          "axi_protocol_convert_0/aresetn"
+          "axi_protocol_convert_0/aresetn",
+          "axi_protocol_convert_1/aresetn",
+          "axi_apb_bridge_0/s_axi_aresetn"
         ]
       }
     },
@@ -1036,13 +1035,32 @@
               }
             }
           }
+        },
+        "memory_maps": {
+          "apb_cpu_config": {
+            "address_blocks": {
+              "Reg": {
+                "base_address": "0",
+                "range": "64K",
+                "width": "32",
+                "usage": "register"
+              }
+            }
+          }
         }
       },
       "/processing_system7_0": {
         "address_spaces": {
           "Data": {
             "range": "4G",
-            "width": "32"
+            "width": "32",
+            "segments": {
+              "SEG_apb_cpu_config_Reg": {
+                "address_block": "/apb_cpu_config/Reg",
+                "offset": "0x73C00000",
+                "range": "4K"
+              }
+            }
           }
         }
       }

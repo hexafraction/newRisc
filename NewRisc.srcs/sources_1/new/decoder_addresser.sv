@@ -467,13 +467,13 @@ module decoder import decoding::*;(
 						$display("                           XCHG reads from r%0d", decoded.rRead.register_id);
 						if(decoded[0] || decoded[1]) begin
 							$display("                           ILLEGAL (XCHG stack op)");
-							decoded.value = 0;
+							decoded.valid = 0;
 						end
 					end
 					endcase // ins[21:20]
 					if(decoded[0] && decoded[1]) begin
 						$display("                           ILLEGAL (both increment and decrement)");
-						decoded.value = 0;
+						decoded.valid = 0;
 					end
 				end
                 endcase // ins[23:22]

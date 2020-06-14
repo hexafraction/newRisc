@@ -1,6 +1,6 @@
 # NewRISC: a Really Insecure Speculative Computer
 
-NewRISC is a personal project of mine, where I aim to create a 32-bit processor with an unusual design goal: **an environment to easily explore side-channel and microarchitectural exploits**. 
+NewRISC is a personal project of mine, where I aim to create a 32-bit processor with an unusual design goal: **an environment to easily explore side-channel and microarchitectural sampling exploits**. 
 
 In the initial revision, the design will be targeted toward enabling a variety of attacks via memory caches. The design is extensible to allow multicore operation, as well as simple privilege levels (i.e. user/supervisor mode) in the future.
 
@@ -38,16 +38,30 @@ As mentioned above, one register can be written back per bank, per clock cycle (
 
 For simplicity, only one branch instruction may be in the pipeline at any time. Once it enters the pipeline, all following instructions are marked as speculative: they will not be allowed to reach the writeback phase until the branch resolves successfully, and must wait in the writeback queues. However, register values *will* be forwarded to speculative instructions being issued.
 
-However, non-architectural side effects will remain in place. At present, this includes only effects on the L1D and L2 unified caches.
+Non-architectural side effects will remain in place on mispredictions. At present, this includes only effects on the L1D and L2 unified caches.
 
 > "Nooo! you can't just update microarchitectural state on a speculated instruction!"
 > 
 > "Haha, cache line fill go brrrrrrrrrrr"
 
+### Delay unit
+
+To assist in constructing deep speculative paths, there will be a "pipeline delay" unit. This unit can be used to create a slow dependency for a conditional branch:
+
+```
+SLOWMOV r7, r8;
+CMP r7, r5;
+BEQ someLabel;
+... instructions to be executed speculatively follow here 
+```
+
+The CMP enters the pipeline with pending operands, and remains for a long time while the SLOWMOV resolves. Note that the speculative instructions which follow cannot include ALU ops, since they would stall until just before the branch clears.
+
 # Memory hierarchy
 
- - 4 KiB L1i cache, one per core, simple prefetching
- - 4 KiB L1d cache, one per core. Write-through policy; reads can be forced to fill from main memory even if cache line is available
- - 32 KiB unified L2 cache, shared between cores
- - No coherency between L1i and L1d
- - DRAM attached to Zynq PL via HP AXI port
+ - 4 KiB L1i cache, one per core, simple prefetching, custom design.
+ - 4 KiB L1d cache, one per core. Write-through policy; reads can be forced to fill from main memory even if cache line is available. Custom design.
+ - 32 KiB unified L2 cache, shared between cores, off-the-shelf Xilinx IP.
+ - No coherency between L1i and L1d, or between L1 caches on different cores
+     - Volatile reads must force L1 cache bypass (writes always bypass)
+ - DRAM accessed via Zynq PS's HP AXI port
