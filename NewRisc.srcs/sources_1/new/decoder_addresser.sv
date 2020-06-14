@@ -9,7 +9,9 @@ package decoding;
     // FU_ALU reads two 32-bit inputs, and yields a single 32-bit output (via the lWrite datapath) and a new set of flags.
     // 
 	// FU_WIDE reads two 32-bit inputs, and multiplies them into a 64-bit output (via the lWrite and rWrite datapaths), or shifts lhs by an amount specified in rhs
-    // FU_MEMORY performs loads, stores, exchanges. The address is in lhs, store data in rhs, load/xhcg result in output lhs
+    // FU_MEMORY performs loads, stores, exchanges. The address is in lhs, store data in rhs.
+    // load/xhcg output data in rhs.
+	// To support stack operations, the address with a +/- 4 increment is output via lhs
 	// FU_SFR performs SFR input/output.
     // FU_BRANCH_CONTROL is used to execute a branch
     //      Special case: FU_BRANCH_CONTROL can prevent the retire unit from retiring instructions until the branch resolves
@@ -78,9 +80,14 @@ package decoding;
         
         // Wide function control
         WideFunction wideFunction;
+		
         // Memory control
         MemoryFunction memFunction;
-        // SFR control
+		// Used for address output computation in the memory unit
+		reg preDecrement;
+        reg postIncrement;
+		
+		// SFR control
         SfrFunction sfrFunction;
     } LongInstructionWord;
   
@@ -143,8 +150,12 @@ module decoder import decoding::*;(
         decoded.addressIfNotTaken = pc + 4;
         
         decoded.wideFunction = WFN_SHIFT;
+		
         decoded.memFunction = MEM_LOAD;
-        decoded.sfrFunction = SFR_READ;
+        decoded.preDecrement = 1'bx;
+		decoded.postIncrement = 1'bx;
+		
+		decoded.sfrFunction = SFR_READ;
 		
 		
 		// For instructions acting on an interpreted immediate, the encoding is as follows:
@@ -359,7 +370,7 @@ module decoder import decoding::*;(
 					$display("[DECODE] %h %h LDM r%0d <- [%h]", 
 						pc, 
 						ins, 
-						decoded.lWrite.register_id, 
+						decoded.rWrite.register_id, 
 						decoded.lRead.immediate_value);
 				end
 				2'b10: begin
@@ -388,11 +399,14 @@ module decoder import decoding::*;(
 				end
 				2'b11: begin
 					// 32-bit indirect memory operation. 
+					// TODO add cache control bits and stack ops
                     //  31     24       23    20       16 15                            0
-                    // [0 0 0 0 0 0 1 0][1 1 C C L x x x][A A A A B B B B x x x x x x x x]
+                    // [0 0 0 0 0 0 1 0][1 1 C C L x x x][A A A A B B B B x x x x x x I D]
                     // A is the data register
                     // B is the address register
                     // C is 00 for load, 01 for store, 10 for exchange, 11 reserved for future expansion
+					// If I is set, register BBBB is post-incremented (push for upward growing stack, or pop for downward growing stack)
+					// If D is set, register BBBB is pre-decremented (pop for upward growing stack, or push for downward growing stack)
 					// L: reserved for later use (lock)
 					decoded.issueUnit = FU_MEMORY;
 					// The address input of the memory unit is AAAA
@@ -402,6 +416,8 @@ module decoder import decoding::*;(
 					// When we're loading, this is ignored.
 					decoded.rRead.path = DP_REGISTER;
 					decoded.rRead.register_id = ins[11:8];
+					decoded.preDecrement = ins[0];
+					decoded.postIncrement = ins[1];
 					case(ins[21:20])
 					2'b00: begin
 						// Load value in memory address [AAAA] to register BBBB
@@ -414,6 +430,12 @@ module decoder import decoding::*;(
 							ins, 
 							decoded.lWrite.register_id, 
 							decoded.lRead.register_id);
+						if(decoded[0]) begin
+							$display("                           POP UP");
+						end
+						if(decoded[1]) begin
+							$display("                           POP DOWN");
+						end
 					end
 					2'b01: begin
 						// Store value of register BBBB to address in register AAAA
@@ -424,6 +446,12 @@ module decoder import decoding::*;(
 							ins, 
 							decoded.lWrite.register_id, 
 							decoded.lRead.register_id);
+						if(decoded[0]) begin
+							$display("                           PUSH DOWN");
+						end
+						if(decoded[1]) begin
+							$display("                           PUSH UP");
+						end
 					end
 					2'b10: begin
 						// Exchange between memory address [AAAA] and register BBBB
@@ -431,14 +459,22 @@ module decoder import decoding::*;(
 						decoded.lWrite.path = DP_REGISTER;
 						decoded.lWrite.register_id = ins[11:8];
 						decoded.valid = 1;
-						$display("[DECODE] %h %h XHCG r%0d <-> [r%0d]", 
+						$display("[DECODE] %h %h XCHG r%0d <-> [r%0d]", 
 							pc, 
 							ins, 
 							decoded.lWrite.register_id, 
 							decoded.lRead.register_id);
-						$display("          XCHG reads from r%0d", decoded.rRead.register_id);
+						$display("                           XCHG reads from r%0d", decoded.rRead.register_id);
+						if(decoded[0] || decoded[1]) begin
+							$display("                           ILLEGAL (XCHG stack op)");
+							decoded.value = 0;
+						end
 					end
 					endcase // ins[21:20]
+					if(decoded[0] && decoded[1]) begin
+						$display("                           ILLEGAL (both increment and decrement)");
+						decoded.value = 0;
+					end
 				end
                 endcase // ins[23:22]
             end

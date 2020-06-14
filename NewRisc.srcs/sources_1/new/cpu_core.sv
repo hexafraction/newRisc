@@ -33,7 +33,7 @@ interface PipelineLink;
 	// high when the source asserts a valid instruction and wants the sink to accept it.
 	logic instructionValid;
 	// The instruction itself
-	decoding::LongInstructionWord instruction;
+	LongInstructionWord instruction;
 	// The data itself (operands before execute stage, outputs after execute stage)
 	logic[31:0] lhsData;
 	logic[31:0] rhsData;
@@ -146,16 +146,25 @@ module decode_unit import decoding::*; (
 	output LongInstructionWord renamed,
 	PipelineLink.Source to_issue_unit,
 	
-	SpeculativeControl.Watcher speculation
+	SpeculativeControl.Watcher speculation,
+	MemInterface.Initiator l1i_cache
 );
 LongInstructionWord decoded;
 
-// temporary, for testing
+// We use a very simple remapping of physical to logical registers
+// Each logical register maps to two physical registers (i.e. r4 can map to phys4 and phys20)
+// phys_msb_mapping[x] indicates the MSB of the physical register to service reads from rx
+// (i.e. x if 0, 16+x if 1)
+reg[15:0] phys_msb_mapping;
+// stores the mapping just before the speculative instruction in the pipeline
+// If speculation is wrong, we restore
+reg[15:0] speculative_restore_phys_mapping;
+
 always_comb begin
 	renamed = decoded;
 	renamed.lRead.phys_register_id = 5'b11111;
 end
-decoder dec(.ins(ins), .pc(pc), .decoded(decoded));
+decoder_addresser dec(.ins(ins), .pc(pc), .decoded(decoded));
 // TODO
 endmodule
 
