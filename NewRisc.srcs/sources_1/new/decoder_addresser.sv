@@ -68,11 +68,10 @@ package decoding;
         DataPathControl rWrite;
         
         /* Branch control:
-        If we are branching in any way, isBranching is true.
         If we can make a branch prediction, we set predictionValid to true and predictTaken to reflect our prediction.
         This is NOT taken for indirected (register-valued) jumps. Those just serialize.
         */
-        reg isBranching;
+        reg speculativeBranch;
         reg predictionValid;
         reg predictTaken;
         reg [31:0] addressIfTaken;
@@ -142,7 +141,7 @@ module decoder import decoding::*;(
         decoded.rWrite.phys_register_id = 5'bx;
         decoded.rWrite.immediate_value = 32'bx;
         
-        decoded.isBranching = 0;
+        decoded.speculativeBranch = 0;
         decoded.predictionValid = 1'bx;
         decoded.predictTaken = 1'bx;
         

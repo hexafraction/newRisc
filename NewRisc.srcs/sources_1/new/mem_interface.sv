@@ -25,3 +25,23 @@ interface MemInterface;
 		output done
 	);
 endinterface
+
+// r_data is returned on the following clock edge after reg_id is asserted
+//            __    __    __
+// CLK     __|  |__|  |__|  |
+//                 .     .
+// reg_id  ----<= A=><= B=><= C=><
+//                 .     .
+// r_data  ---------<= A=><= B=><=
+interface RegFileFetchInterface;
+	logic[4:0] reg_id;
+	logic[31:0] r_data;
+	modport FetchUnit(
+		output reg_id,
+		input r_data
+	);
+	modport RegFile(
+		input reg_id,
+		output r_data
+	);
+endinterface

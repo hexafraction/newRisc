@@ -1,4 +1,5 @@
 `timescale 1ns / 1ps
+`include "utils.sv"
 // In-order, pipelined
 // Pipeline as follows:
 // RD: The register file is read if any input datapaths reference a register. This stage may stall (refuse to issue an instruction) due to hazards.
@@ -34,7 +35,7 @@ interface PipelineLink;
 	logic instructionValid;
 	// The instruction itself
 	decoding::LongInstructionWord instruction;
-	// The data itself (operands before execute stage, outputs after execute stage)
+	// The data itself (operands before execute stage, outputs after execute stage). No meaning in the link between decode and fetch
 	logic[31:0] lhsData;
 	logic[31:0] rhsData;
 	
@@ -42,7 +43,7 @@ interface PipelineLink;
 	logic lPending;
 	logic rPending;
 	
-	// A tag used to identify the instruction.
+	// A tag used to identify the instruction. (maybe unused?)
 	logic[3:0] tag;
 	// Set if the instruction is speculative and should be held pending branch confirmation
 	logic isSpeculative;
@@ -235,19 +236,205 @@ endmodule
 // The fetch/issue unit performs a fetch from registers. The register fetch is a single clock
 // edge on the block RAM, and occurs on the same edge that the instruction is latched into 
 // this unit.
-module fetch_issue_unit(
+module fetch_issue_unit import decoding::*; (
 	input clk,
-	PipelinkLink.Sink from_decode_unit,
+	PipelineLink.Sink from_decode_unit,
 	PipelineLink.Source to_alu,
 	PipelineLink.Source to_mem,
 	// The writeback queue is a single pipeline stage that either passes directly to writeback,
 	//     or holds a writeback op until the writeback unit is ready.
-	PipelineLink.Source to_writeback_queue,
+	PipelineLink.Source to_wbq,
 	// more functional units when they are implemented
 	
-	SpeculativeControl.Issuer speculation
+	SpeculationControl.Issuer speculation,
+	
+	// Hazard vector: in_flight_writes[n] is set if and only if there is an instruction writing to physical register n in the pipeline.
+	// When the instruction reaches writeback, this is no longer asserted (since forwarding will occur via the register file)
+	// If this is asserted, then instructions that WRITE that register must NOT be issued, and instructions that read it must wait for a forwarded result before starting computation.
+	input[31:0] in_flight_writes,
+	RegFileFetchInterface.FetchUnit reg_read_port1,
+	RegFileFetchInterface.FetchUnit reg_read_port2
 );
-// TODO
+
+// The instruction that's currently in the stage, waiting to be issued to a functional unit.
+LongInstructionWord bufferedInstruction;
+logic[3:0] bufferedTag;
+// whether an instruction is currently in this stage
+reg occupied = 0;
+
+// Combinational signal; high if we'll accept an element on the upcoming clock edge.
+logic pipeIsAdvancing;
+
+// Speculation details
+
+
+assign from_decode_unit.readyToAccept = pipeIsAdvancing;
+
+// pipeline control
+always_comb begin
+	pipeIsAdvancing = 0;
+	if(!occupied) begin
+		`ifdef PIPE_DETAILED_DEBUG
+			$display("[PIPE  ] fetch unit accepting at %t; reason: not occupied");
+		`endif
+		pipeIsAdvancing = 1;
+	end
+	else begin
+		case(bufferedInstruction.issueUnit)
+			FU_ALU: begin
+				if(to_alu.readyToAccept && to_alu.instructionValid) begin
+				`ifdef PIPE_DETAILED_DEBUG
+					$display("[PIPE  ] fetch unit accepting at %t; reason: ALU ready");
+				`endif
+				pipeIsAdvancing = 1;
+				end
+			end
+			FU_MEMORY: begin
+				if(to_mem.readyToAccept && to_mem.instructionValid) begin
+				`ifdef PIPE_DETAILED_DEBUG
+					$display("[PIPE  ] fetch unit accepting at %t; reason: MEM ready");
+				`endif
+				pipeIsAdvancing = 1;
+				end
+			end
+			FU_NONE: begin
+				if(to_wbq.readyToAccept && to_wbq.instructionValid) begin
+				`ifdef PIPE_DETAILED_DEBUG
+					$display("[PIPE  ] fetch unit accepting at %t; reason: direct writeback ready");
+				`endif
+				pipeIsAdvancing = 1;
+				end
+			end
+			default: begin
+				$display("#PIPE### fetch unit confused at %t; invalid issue unit: %s", 
+					`STR(bufferedInstruction.issueUnit.name()));
+				pipeIsAdvancing = 1'bx;
+			end
+		endcase
+	end
+end
+
+// Computation of reg read addresses
+always_comb begin
+	if(pipeIsAdvancing) begin
+		reg_read_port1.reg_id = from_decode_unit.instruction.lRead.phys_register_id;
+		reg_read_port2.reg_id = from_decode_unit.instruction.rRead.phys_register_id;
+	end else begin
+		// we're stalled, so we should just re-fetch the operands for the instruction that's rotting away in our buffer
+		reg_read_port1.reg_id = bufferedInstruction.lRead.phys_register_id;
+		reg_read_port2.reg_id = bufferedInstruction.rRead.phys_register_id;
+	end
+end
+
+logic[31:0] lhsData;
+logic[31:0] rhsData;
+logic lPending;
+logic rPending;
+
+always_comb begin
+	lhsData = 32'bx;
+	rhsData = 32'bx;
+	lPending = 1'b0;
+	rPending = 1'b0;
+	case(bufferedInstruction.lRead.path)
+		DP_REGISTER: begin
+			lhsData = reg_read_port1.r_data;
+			lPending = in_flight_writes[bufferedInstruction.lRead.phys_register_id];
+		end
+		DP_IMMEDIATE_DISCARD: begin
+			lhsData = bufferedInstruction.lRead.immediate_value;
+		end
+		DP_PC: begin
+			lhsData = bufferedInstruction.pc;
+		end
+	endcase
+	
+	case(bufferedInstruction.rRead.path)
+		DP_REGISTER: begin
+			rhsData = reg_read_port2.r_data;
+			rPending = in_flight_writes[bufferedInstruction.rRead.phys_register_id];
+		end
+		DP_IMMEDIATE_DISCARD: begin
+			rhsData = bufferedInstruction.rRead.immediate_value;
+		end
+		DP_PC: begin
+			rhsData = bufferedInstruction.pc;
+		end
+	endcase
+end
+
+// 6/15/2020 notes: continue here. Need to finish the logic that sets up the outgoing data
+always_comb begin
+	// assignments to outgoing pipeline links go here
+	// lhsData/rhsData come from reg file/immediate/PC depending on the datapath [done]
+	// lPending/rPending come from the hazard vector && (path == register) [done]
+	// tag passes through [done]
+	// instructionValid if we are occupied, AND the instruction is clear to go ahead (i.e. no write conflicts)
+	//
+	//
+	// TODO for later:
+	// isSpeculative should be left as X for now, until branching and speculative execution are implemented 
+	// 		this unit will need to issue `speculatingInPipeline`, and also handle the resolve signals
+	// 		on correct prediction, it should continue issuing
+	//		on wrong prediction, it should clear out whatever's inside without issuing it
+	//		The decode unit will be responsible for refilling the pipeline
+	to_alu.instruction = bufferedInstruction;
+	to_mem.instruction = bufferedInstruction;
+	to_wbq.instruction = bufferedInstruction;
+	to_alu.lhsData = lhsData;
+	to_mem.lhsData = lhsData;
+	to_wbq.lhsData = lhsData;
+	to_alu.rhsData = rhsData;
+	to_mem.rhsData = rhsData;
+	to_wbq.rhsData = rhsData;
+	to_alu.lPending = lPending;
+	to_mem.lPending = lPending;
+	to_wbq.lPending = lPending;
+	to_alu.rPending = rPending;
+	to_mem.rPending = rPending;
+	to_wbq.rPending = rPending;
+	
+	to_alu.tag = bufferedTag;
+	to_mem.tag = bufferedTag;
+	to_wbq.tag = bufferedTag;
+	
+	to_alu.isSpeculative = 1'bx;
+	to_mem.isSpeculative = 1'bx;
+	to_wbq.isSpeculative = 1'bx;
+	
+	to_alu.instructionValid = 0;
+	to_mem.instructionValid = 0;
+	to_wbq.instructionValid = 0;
+	if(occupied) begin
+		case(bufferedInstruction.issueUnit)
+			FU_ALU: begin
+				to_alu.instructionValid = 1;
+			end
+			FU_MEMORY: begin
+				to_mem.instructionValid = 1;
+			end
+			FU_NONE: begin
+				to_wbq.instructionValid = 1;
+			end
+			default: begin
+				$display("#ISSUE## issue unit confused at %t; invalid issue unit: %s", 
+					`STR(bufferedInstruction.issueUnit.name()));
+				pipeIsAdvancing = 1'bx;
+			end
+		endcase
+	end
+	
+end
+
+always_ff @ (posedge clk) begin
+	if(pipeIsAdvancing) begin
+		bufferedInstruction <= from_decode_unit.instruction;
+		bufferedTag <= from_decode_unit.tag;
+		// if the decoder doesn't have an instruction for us, then we have a bubble
+		occupied <= from_decode_unit.instructionValid;
+	end
+end
+	
 endmodule
 
 
