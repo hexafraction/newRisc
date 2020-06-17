@@ -45,8 +45,6 @@ interface PipelineLink;
 	
 	// A tag used to identify the instruction. (maybe unused?)
 	logic[3:0] tag;
-	// Set if the instruction is speculative and should be held pending branch confirmation
-	logic isSpeculative;
 	
 	modport Source (
 			input readyToAccept,
@@ -55,7 +53,6 @@ interface PipelineLink;
 			output lhsData,
 			output rhsData,
 			output tag,
-			output isSpeculative,
 			output lPending,
 			output rPending);
 	modport Sink (
@@ -102,6 +99,7 @@ interface SpeculationControl;
 	logic speculationResolved;
 	// When speculativeResolved is high, this indicates that the speculation was correct(0) or incorrect(1)
 	// If this is high, the pipeline is flushed
+	// Assumption/invariant: ~speculationResolved implies ~wasMispredicted
 	logic wasMispredicted;
 	// when speculationResolved is high, this gives the next PC to issue from
 	logic[31:0] nextPc;
@@ -259,32 +257,48 @@ module fetch_issue_unit import decoding::*; (
 // The instruction that's currently in the stage, waiting to be issued to a functional unit.
 LongInstructionWord bufferedInstruction;
 logic[3:0] bufferedTag;
+
 // whether an instruction is currently in this stage
 reg occupied = 0;
 
+// Whether a speculative instruction has been issued and not yet resolved
+reg speculatingInPipeline = 0;
+
+
 // Combinational signal; high if we'll accept an element on the upcoming clock edge.
 logic pipeIsAdvancing;
-
-// Speculation details
-
-
 assign from_decode_unit.readyToAccept = pipeIsAdvancing;
+logic canIssueSpeculativeInstructions;
+
+always_comb begin
+	canIssueSpeculativeInstructions = ~speculatingInPipeline;
+	if(speculation.speculationResolved && ~speculation.wasMispredicted) begin
+		canIssueSpeculativeInstructions = 1;
+	end
+end
 
 // pipeline control
 always_comb begin
-	pipeIsAdvancing = 0;
-	if(!occupied) begin
+	pipeIsAdvancing = 1'bx;
+	if(speculation.speculationResolved && speculation.wasMispredicted) begin
+		// uh oh! We've mispredicted. At this point the decoder is still issuing the old stream
+		pipeIsAdvancing = 0;
+		$display("[PIPE  ] fetch unit not accepting; reason: mispredicted");
+	end
+	else if(!occupied) begin
 		`ifdef PIPE_DETAILED_DEBUG
-			$display("[PIPE  ] fetch unit accepting at %t; reason: not occupied");
+			$display("[PIPE  ] fetch unit accepting; reason: not occupied");
 		`endif
 		pipeIsAdvancing = 1;
 	end
-	else begin
+	// we can only issue speculative instructions if there isn't one already in the pipe
+	else if(canIssueSpeculativeInstructions || ~bufferedInstruction.speculativeBranch) begin
+		pipeIsAdvancing = 0;
 		case(bufferedInstruction.issueUnit)
 			FU_ALU: begin
 				if(to_alu.readyToAccept && to_alu.instructionValid) begin
 				`ifdef PIPE_DETAILED_DEBUG
-					$display("[PIPE  ] fetch unit accepting at %t; reason: ALU ready");
+					$display("[PIPE  ] fetch unit accepting; reason: ALU ready");
 				`endif
 				pipeIsAdvancing = 1;
 				end
@@ -292,7 +306,7 @@ always_comb begin
 			FU_MEMORY: begin
 				if(to_mem.readyToAccept && to_mem.instructionValid) begin
 				`ifdef PIPE_DETAILED_DEBUG
-					$display("[PIPE  ] fetch unit accepting at %t; reason: MEM ready");
+					$display("[PIPE  ] fetch unit accepting; reason: MEM ready");
 				`endif
 				pipeIsAdvancing = 1;
 				end
@@ -300,13 +314,13 @@ always_comb begin
 			FU_NONE: begin
 				if(to_wbq.readyToAccept && to_wbq.instructionValid) begin
 				`ifdef PIPE_DETAILED_DEBUG
-					$display("[PIPE  ] fetch unit accepting at %t; reason: direct writeback ready");
+					$display("[PIPE  ] fetch unit accepting; reason: direct writeback ready");
 				`endif
 				pipeIsAdvancing = 1;
 				end
 			end
 			default: begin
-				$display("#PIPE### fetch unit confused at %t; invalid issue unit: %s", 
+				$display("#PIPE### fetch unit confused; invalid issue unit: %s", 
 					`STR(bufferedInstruction.issueUnit.name()));
 				pipeIsAdvancing = 1'bx;
 			end
@@ -398,14 +412,11 @@ always_comb begin
 	to_mem.tag = bufferedTag;
 	to_wbq.tag = bufferedTag;
 	
-	to_alu.isSpeculative = 1'bx;
-	to_mem.isSpeculative = 1'bx;
-	to_wbq.isSpeculative = 1'bx;
-	
 	to_alu.instructionValid = 0;
 	to_mem.instructionValid = 0;
 	to_wbq.instructionValid = 0;
-	if(occupied) begin
+	// if we mispredicted, we're not sending this instruction out
+	if(occupied && ~speculation.wasMispredicted) begin
 		case(bufferedInstruction.issueUnit)
 			FU_ALU: begin
 				to_alu.instructionValid = 1;
@@ -417,7 +428,7 @@ always_comb begin
 				to_wbq.instructionValid = 1;
 			end
 			default: begin
-				$display("#ISSUE## issue unit confused at %t; invalid issue unit: %s", 
+				$display("#ISSUE## issue unit confused; invalid issue unit: %s", 
 					`STR(bufferedInstruction.issueUnit.name()));
 				pipeIsAdvancing = 1'bx;
 			end
@@ -427,16 +438,29 @@ always_comb begin
 end
 
 always_ff @ (posedge clk) begin
-	if(pipeIsAdvancing) begin
+	if(speculation.speculationResolved && speculation.mispredicted) begin
+		occupied <= 0;
+	end
+	else if(pipeIsAdvancing) begin
 		bufferedInstruction <= from_decode_unit.instruction;
 		bufferedTag <= from_decode_unit.tag;
 		// if the decoder doesn't have an instruction for us, then we have a bubble
 		occupied <= from_decode_unit.instructionValid;
 	end
+	
+	
 end
 	
 endmodule
 
+module alu_pipe(
+	input clk, 
+	PipelineLink.Sink from_issue_unit,
+	PipelineLink.Source to_wbq,
+	RegisterForwarding.Provider alu_rslt_fwd
+);
+
+endmodule
 
 
 module cpu_core(

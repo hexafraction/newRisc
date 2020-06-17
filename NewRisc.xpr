@@ -95,14 +95,11 @@
           <Attr Name="UsedIn" Val="implementation"/>
           <Attr Name="UsedIn" Val="simulation"/>
         </FileInfo>
-        <CompFileExtendedInfo CompFileName="system_integration.bd" FileRelPathName="ip/system_integration_processing_system7_0_0/system_integration_processing_system7_0_0.xci">
-          <Proxy FileSetName="system_integration_processing_system7_0_0"/>
-        </CompFileExtendedInfo>
         <CompFileExtendedInfo CompFileName="system_integration.bd" FileRelPathName="ip/system_integration_ahblite_axi_bridge_0_0/system_integration_ahblite_axi_bridge_0_0.xci">
           <Proxy FileSetName="system_integration_ahblite_axi_bridge_0_0"/>
         </CompFileExtendedInfo>
-        <CompFileExtendedInfo CompFileName="system_integration.bd" FileRelPathName="ip/system_integration_system_cache_0_0/system_integration_system_cache_0_0.xci">
-          <Proxy FileSetName="system_integration_system_cache_0_0"/>
+        <CompFileExtendedInfo CompFileName="system_integration.bd" FileRelPathName="ip/system_integration_processing_system7_0_0/system_integration_processing_system7_0_0.xci">
+          <Proxy FileSetName="system_integration_processing_system7_0_0"/>
         </CompFileExtendedInfo>
         <CompFileExtendedInfo CompFileName="system_integration.bd" FileRelPathName="ip/system_integration_rst_ps7_0_100M_0/system_integration_rst_ps7_0_100M_0.xci">
           <Proxy FileSetName="system_integration_rst_ps7_0_100M_0"/>
@@ -112,6 +109,9 @@
         </CompFileExtendedInfo>
         <CompFileExtendedInfo CompFileName="system_integration.bd" FileRelPathName="ip/system_integration_axi_protocol_convert_0_0/system_integration_axi_protocol_convert_0_0.xci">
           <Proxy FileSetName="system_integration_axi_protocol_convert_0_0"/>
+        </CompFileExtendedInfo>
+        <CompFileExtendedInfo CompFileName="system_integration.bd" FileRelPathName="ip/system_integration_system_cache_0_0/system_integration_system_cache_0_0.xci">
+          <Proxy FileSetName="system_integration_system_cache_0_0"/>
         </CompFileExtendedInfo>
       </File>
       <File Path="$PSRCDIR/sources_1/bd/system_integration/hdl/system_integration_wrapper.v">
