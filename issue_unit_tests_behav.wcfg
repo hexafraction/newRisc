@@ -1,0 +1,77 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<wave_config>
+   <wave_state>
+   </wave_state>
+   <db_ref_list>
+      <db_ref path="issue_unit_tests_behav.wdb" id="1">
+         <top_modules>
+            <top_module name="decoding" />
+            <top_module name="glbl" />
+            <top_module name="issue_unit_tests" />
+         </top_modules>
+      </db_ref>
+   </db_ref_list>
+   <zoom_setting>
+      <ZoomStartTime time="0fs"></ZoomStartTime>
+      <ZoomEndTime time="142000001fs"></ZoomEndTime>
+      <Cursor1Time time="103400000fs"></Cursor1Time>
+   </zoom_setting>
+   <column_width_setting>
+      <NameColumnWidth column_width="175"></NameColumnWidth>
+      <ValueColumnWidth column_width="146"></ValueColumnWidth>
+   </column_width_setting>
+   <WVObjectSize size="6" />
+   <wvobject fp_name="/issue_unit_tests/clk" type="logic">
+      <obj_property name="ElementShortName">clk</obj_property>
+      <obj_property name="ObjectShortName">clk</obj_property>
+   </wvobject>
+   <wvobject fp_name="/issue_unit_tests/inFlightWrites" type="array">
+      <obj_property name="ElementShortName">inFlightWrites[31:0]</obj_property>
+      <obj_property name="ObjectShortName">inFlightWrites[31:0]</obj_property>
+   </wvobject>
+   <wvobject fp_name="/issue_unit_tests/testNumber" type="array">
+      <obj_property name="ElementShortName">testNumber[31:0]</obj_property>
+      <obj_property name="ObjectShortName">testNumber[31:0]</obj_property>
+   </wvobject>
+   <wvobject fp_name="/issue_unit_tests/dut/pipeIsAdvancing" type="logic">
+      <obj_property name="ElementShortName">pipeIsAdvancing</obj_property>
+      <obj_property name="ObjectShortName">pipeIsAdvancing</obj_property>
+   </wvobject>
+   <wvobject fp_name="/issue_unit_tests/dut/occupied" type="logic">
+      <obj_property name="ElementShortName">occupied</obj_property>
+      <obj_property name="ObjectShortName">occupied</obj_property>
+   </wvobject>
+   <wvobject fp_name="group41" type="group">
+      <obj_property name="label">toAlu</obj_property>
+      <obj_property name="DisplayName">label</obj_property>
+      <obj_property name="isExpanded"></obj_property>
+      <wvobject fp_name="/issue_unit_tests/toAlu/Source/readyToAccept" type="logic">
+         <obj_property name="ElementShortName">readyToAccept</obj_property>
+         <obj_property name="ObjectShortName">readyToAccept</obj_property>
+      </wvobject>
+      <wvobject fp_name="/issue_unit_tests/toAlu/Source/instructionValid" type="logic">
+         <obj_property name="ElementShortName">instructionValid</obj_property>
+         <obj_property name="ObjectShortName">instructionValid</obj_property>
+      </wvobject>
+      <wvobject fp_name="/issue_unit_tests/toAlu/Source/lhsData" type="array">
+         <obj_property name="ElementShortName">lhsData[31:0]</obj_property>
+         <obj_property name="ObjectShortName">lhsData[31:0]</obj_property>
+      </wvobject>
+      <wvobject fp_name="/issue_unit_tests/toAlu/Source/rhsData" type="array">
+         <obj_property name="ElementShortName">rhsData[31:0]</obj_property>
+         <obj_property name="ObjectShortName">rhsData[31:0]</obj_property>
+      </wvobject>
+      <wvobject fp_name="/issue_unit_tests/toAlu/Source/tag" type="array">
+         <obj_property name="ElementShortName">tag[3:0]</obj_property>
+         <obj_property name="ObjectShortName">tag[3:0]</obj_property>
+      </wvobject>
+      <wvobject fp_name="/issue_unit_tests/toAlu/Source/lPending" type="logic">
+         <obj_property name="ElementShortName">lPending</obj_property>
+         <obj_property name="ObjectShortName">lPending</obj_property>
+      </wvobject>
+      <wvobject fp_name="/issue_unit_tests/toAlu/Source/rPending" type="logic">
+         <obj_property name="ElementShortName">rPending</obj_property>
+         <obj_property name="ObjectShortName">rPending</obj_property>
+      </wvobject>
+   </wvobject>
+</wave_config>

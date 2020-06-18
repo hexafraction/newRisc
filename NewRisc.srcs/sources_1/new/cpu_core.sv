@@ -436,7 +436,6 @@ always_comb begin
 			default: begin
 				$display("#ISSUE## issue unit confused; invalid issue unit: %s", 
 					`STR(bufferedInstruction.issueUnit.name()));
-				pipeIsAdvancing = 1'bx;
 			end
 		endcase
 	end
@@ -444,7 +443,7 @@ always_comb begin
 end
 
 always_ff @ (posedge clk) begin
-	if(speculation.speculationResolved && speculation.mispredicted) begin
+	if(speculation.speculationResolved && speculation.wasMispredicted) begin
 		occupied <= 0;
 	end
 	else if(pipeIsAdvancing) begin
