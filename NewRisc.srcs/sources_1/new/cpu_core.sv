@@ -123,21 +123,14 @@ interface SpeculationControl;
 	);
 endinterface
 
-// TODO rethink this? Right now, there's a RegisterForwarding  bus for each requester. The requester sets the reg_id, and the *request* is broadcast to each provider. When a provider has the desired value, it writes it to the bus. 
-// The alternative is to have each provider broadcast, and muxes on each requester
-// Other alternatives include an explicit M:N (M providers, N requesters) crossbar switch (maybe), or a common data bus of 1024 bits (excessive)
-//
-// Now that I think about it, the current implementation is a
-// crossbar switch, just weirdly packed into the provider logic
-// The provider includes the switch/enable logic for all N requesters
-// This will eventually depend on the number of requesters and providers. Many requesters: mux at requester. Many providers: compare and wired-OR at the provider.
+// These must be connected via a crossbar switch!
 interface RegisterForwarding;
 	// the phyisical register being fetched (set by the fetch unit)
 	logic[4:0] reg_id;
 	// whether an execution unit has the result (wired-or)
-	wor valid;
+	logic valid;
 	// the value of the register (wired-or, driven by the execution unit that has the result)
-	wor[31:0] value;
+	logic[31:0] value;
 	modport Provider(
 		input reg_id,
 		output valid,
@@ -256,7 +249,7 @@ module fetch_issue_unit import decoding::*; (
 
 // The instruction that's currently in the stage, waiting to be issued to a functional unit.
 LongInstructionWord bufferedInstruction;
-logic[3:0] bufferedTag;
+reg[3:0] bufferedTag;
 
 // whether an instruction is currently in this stage
 reg occupied = 0;
@@ -269,6 +262,7 @@ reg speculatingInPipeline = 0;
 logic pipeIsAdvancing;
 assign from_decode_unit.readyToAccept = pipeIsAdvancing;
 logic canIssueSpeculativeInstructions;
+logic hazardClear;
 
 always_comb begin
 	canIssueSpeculativeInstructions = ~speculatingInPipeline;
@@ -277,9 +271,21 @@ always_comb begin
 	end
 end
 
+always_comb begin
+	hazardClear = 1;
+	if(bufferedInstruction.lWrite.path == DP_REGISTER && in_flight_writes[bufferedInstruction.lWrite.phys_register_id]) begin
+		$display("[PIPE  ] fetch unit cannot issue because register r%x already has a pending write", bufferedInstruction.lWrite.phys_register_id);
+		hazardClear = 0;
+	end
+	if(bufferedInstruction.rWrite.path == DP_REGISTER && in_flight_writes[bufferedInstruction.rWrite.phys_register_id]) begin
+		$display("[PIPE  ] fetch unit cannot issue because register r%x already has a pending write", bufferedInstruction.rWrite.phys_register_id);
+		hazardClear = 0;
+	end
+end
+
 // pipeline control
 always_comb begin
-	pipeIsAdvancing = 1'bx;
+	pipeIsAdvancing = 1'b0;
 	if(speculation.speculationResolved && speculation.wasMispredicted) begin
 		// uh oh! We've mispredicted. At this point the decoder is still issuing the old stream
 		pipeIsAdvancing = 0;
@@ -292,7 +298,7 @@ always_comb begin
 		pipeIsAdvancing = 1;
 	end
 	// we can only issue speculative instructions if there isn't one already in the pipe
-	else if(canIssueSpeculativeInstructions || ~bufferedInstruction.speculativeBranch) begin
+	else if(hazardClear && (canIssueSpeculativeInstructions || ~bufferedInstruction.speculativeBranch)) begin
 		pipeIsAdvancing = 0;
 		case(bufferedInstruction.issueUnit)
 			FU_ALU: begin
@@ -453,14 +459,7 @@ end
 	
 endmodule
 
-module alu_pipe(
-	input clk, 
-	PipelineLink.Sink from_issue_unit,
-	PipelineLink.Source to_wbq,
-	RegisterForwarding.Provider alu_rslt_fwd
-);
 
-endmodule
 
 
 module cpu_core(
