@@ -166,7 +166,8 @@ end
 
 always_comb begin
 	alu_rslt_out.value = result;
-	alu_rslt_out.valid = operandsReady && occupied && enableOutputReg && alu_rslt_out.reg_id == outputRegId;
+	alu_rslt_out.valid = operandsReady && occupied && enableOutputReg;
+	alu_rslt_out.reg_id = outputRegId;
 end
 
 endmodule

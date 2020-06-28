@@ -132,7 +132,7 @@ interface RegisterForwarding;
 	// the value of the register (wired-or, driven by the execution unit that has the result)
 	logic[31:0] value;
 	modport Provider(
-		input reg_id,
+		output reg_id,
 		output valid,
 		output value
 	);
@@ -140,6 +140,16 @@ interface RegisterForwarding;
 		output reg_id,
 		input valid,
 		input value
+	);
+	modport ProviderXbar(
+	   input reg_id,
+	   input valid,
+	   input value
+	);
+	modport RequesterXbar(
+	   input reg_id,
+	   output valid,
+	   output value
 	);
 endinterface
 
